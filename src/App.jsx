@@ -3,6 +3,7 @@ import {
   lazy,
   Suspense,
   useEffect,
+  useRef, 
   useState,
 } from 'react'
 import { supabase } from './lib/supabase'
@@ -198,6 +199,7 @@ function Messenger({ session }) {
   const [unreadCounts, setUnreadCounts] = useState({})
   const [activeCall, setActiveCall] = useState(null)
   const [incomingCall, setIncomingCall] = useState(null)
+  const callChannelRef = useRef(null)
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -249,74 +251,84 @@ function Messenger({ session }) {
     }
   }, [session.user.id])
 
-  useEffect(() => {
-    const channel = supabase.channel('call-invites')
+ useEffect(() => {
+  const channel = supabase.channel('call-invites')
 
-    channel.on(
-      'broadcast',
-      { event: 'call-invite' },
-      ({ payload }) => {
-        if (
-          payload.toUserId !== session.user.id
-        ) {
-          return
-        }
+  callChannelRef.current = channel
 
-        setIncomingCall(payload)
+  channel.on(
+    'broadcast',
+    { event: 'call-invite' },
+    ({ payload }) => {
+      if (
+        payload.toUserId !== session.user.id
+      ) {
+        return
       }
-    )
 
-    channel.subscribe()
+      if (payload.callerId === session.user.id) {
+        return
+      }
 
-    return () => {
-      supabase.removeChannel(channel)
+      setIncomingCall(payload)
     }
-  }, [session.user.id])
+  )
 
-  const startCall = async () => {
-    if (!selectedUser) {
-      return
+  channel.subscribe((status) => {
+    if (status === 'SUBSCRIBED') {
+      console.log('Канал звонков подключён')
     }
+  })
 
-    const roomName =
-      `call-${crypto.randomUUID()}`
-
-    const call = {
-      roomName,
-      callerId: session.user.id,
-      callerName:
-        profile?.username ||
-        session.user.email ||
-        'Пользователь',
-      toUserId: selectedUser.id,
-    }
-
-    const channel =
-      supabase.channel('call-invites')
-
-    try {
-      await channel.subscribe()
-
-      await channel.send({
-        type: 'broadcast',
-        event: 'call-invite',
-        payload: call,
-      })
-
-      setActiveCall({
-        roomName,
-      })
-    } catch (error) {
-      console.error(
-        'Ошибка отправки приглашения:',
-        error
-      )
-    } finally {
-      setTimeout(() => {
-        supabase.removeChannel(channel)
-      }, 1000)
-    }
+  return () => {
+    callChannelRef.current = null
+    supabase.removeChannel(channel)
   }
+}, [session.user.id])
+const startCall = async () => {
+  if (!selectedUser) {
+    return
+  }
+
+  const channel = callChannelRef.current
+
+  if (!channel) {
+    console.error(
+      'Канал звонков ещё не подключён'
+    )
+    return
+  }
+
+  const roomName =
+    `call-${crypto.randomUUID()}`
+
+  const call = {
+    roomName,
+    callerId: session.user.id,
+    callerName:
+      profile?.username ||
+      session.user.email ||
+      'Пользователь',
+    toUserId: selectedUser.id,
+  }
+
+  try {
+    await channel.send({
+      type: 'broadcast',
+      event: 'call-invite',
+      payload: call,
+    })
+
+    setActiveCall({
+      roomName,
+    })
+  } catch (error) {
+    console.error(
+      'Ошибка отправки приглашения:',
+      error
+    )
+  }
+}
 
   const acceptCall = () => {
     if (!incomingCall) {
