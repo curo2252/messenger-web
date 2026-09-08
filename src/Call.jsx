@@ -45,7 +45,7 @@ function CallContent({
       <div className="call-header">
         <div>
           <div className="call-title">
-            Групповой звонок
+             Звонок
           </div>
 
           <div className="call-count">
@@ -112,8 +112,8 @@ function CallContent({
                   }`}
                 >
                   {participant.isMicrophoneEnabled
-                    ? '●'
-                    : '×'}
+                    ? '●●●'
+                    : '●'}
                 </div>
               </div>
             )
@@ -134,8 +134,8 @@ function CallContent({
           }
         >
           {muted
-            ? '🔇'
-            : '🎙'}
+            ? '🕪×'
+            : '🕪'}
         </button>
 
         <button
