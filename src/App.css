@@ -1987,14 +1987,14 @@ textarea {
   border: 0;
   border-radius: 50%;
 
-  background: rgba(255, 255, 255, 0.08);
+  background: rgb(255, 255, 255);
 
   font-size: 20px;
   cursor: pointer;
 }
 
 .call-control.active {
-  background: rgba(239, 68, 68, 0.18);
+  background: rgb(239, 68, 68);
 }
 
 .call-leave {
@@ -2023,7 +2023,7 @@ textarea {
 
   background: rgba(96, 165, 250, 0.12);
 
-  color: #60a5fa;
+  color: #060880;
 
   font-size: 17px;
 
