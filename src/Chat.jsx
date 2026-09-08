@@ -2,6 +2,140 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from './lib/supabase'
 import MicIcon from '@mui/icons-material/Mic'
 
+const formatTime = (seconds) => {
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return '0:00'
+  }
+
+  const mins = Math.floor(seconds / 60)
+  const secs = Math.floor(seconds % 60)
+
+  return `${mins}:${String(secs).padStart(2, '0')}`
+}
+
+function VoiceMessageBubble({ src, isMine }) {
+  const audioRef = useRef(null)
+  const [isPlaying, setIsPlaying] = useState(false)
+  const [duration, setDuration] = useState(0)
+  const [currentTime, setCurrentTime] = useState(0)
+
+  const waveformBars = [
+    12, 18, 10, 26, 15,
+    22, 14, 17, 11, 20,
+    18, 28, 12, 16, 24,
+    13, 19, 14, 21, 17,
+  ]
+
+  const progress =
+    duration > 0
+      ? (currentTime / duration) * 100
+      : 0
+
+  const displayDuration =
+    duration > 0
+      ? formatTime(duration)
+      : '0:00'
+
+  const togglePlayback = async () => {
+    const audio = audioRef.current
+
+    if (!audio) {
+      return
+    }
+
+    if (audio.paused) {
+      try {
+        await audio.play()
+        setIsPlaying(true)
+      } catch (error) {
+        console.error(
+          'Ошибка воспроизведения аудио:',
+          error
+        )
+      }
+
+      return
+    }
+
+    audio.pause()
+    setIsPlaying(false)
+  }
+
+  return (
+    <div
+      className="voice-message"
+      aria-label="Voice message"
+    >
+      <button
+        type="button"
+        className={`voice-message-button ${
+          isMine ? 'mine' : 'other'
+        }`}
+        onClick={togglePlayback}
+        aria-label={
+          isPlaying
+            ? 'Пауза'
+            : 'Воспроизведение'
+        }
+      >
+        {isPlaying ? '❚❚' : '▶'}
+      </button>
+
+      <div
+        className="voice-message-wave"
+        aria-hidden="true"
+      >
+        <span
+          className="voice-message-progress"
+          style={{
+            '--voice-progress': `${progress}%`,
+          }}
+        />
+
+        {waveformBars.map((bar, index) => (
+          <span
+            key={`${bar}-${index}`}
+            className="voice-message-bar"
+            style={{
+              height: `${bar}px`,
+              opacity:
+                index / waveformBars.length <
+                progress / 100
+                  ? 1
+                  : 0.42,
+              transform: `scaleY(${index / waveformBars.length < progress / 100 ? 1 : 0.9})`,
+            }}
+          />
+        ))}
+      </div>
+
+      <div className="voice-message-meta">
+        <span>
+          {formatTime(currentTime)} / {displayDuration}
+        </span>
+      </div>
+
+      <audio
+        ref={audioRef}
+        className="voice-message-audio"
+        preload="metadata"
+        src={src}
+        onLoadedMetadata={(event) => {
+          setDuration(event.target.duration || 0)
+        }}
+        onTimeUpdate={(event) => {
+          setCurrentTime(event.target.currentTime || 0)
+        }}
+        onEnded={() => {
+          setIsPlaying(false)
+          setCurrentTime(0)
+        }}
+        onPause={() => setIsPlaying(false)}
+      />
+    </div>
+  )
+}
+
 function Chat({
   currentUser,
   user,
@@ -17,9 +151,32 @@ function Chat({
   const [recording, setRecording] = useState(false)
   const [deletingMessageId, setDeletingMessageId] = useState(null)
   const mediaRecorderRef = useRef(null)
+  const mediaStreamRef = useRef(null)
+  const recordingUserIdRef = useRef(null)
+  const discardRecordingRef = useRef(false)
   const audioChunksRef = useRef([])
 
   const userId = user?.id
+
+  useEffect(() => {
+    return () => {
+      const mediaRecorder = mediaRecorderRef.current
+
+      if (!mediaRecorder) {
+        return
+      }
+
+      discardRecordingRef.current = true
+
+      if (mediaRecorder.state !== 'inactive') {
+        mediaRecorder.stop()
+      }
+
+      mediaStreamRef.current
+        ?.getTracks()
+        .forEach((track) => track.stop())
+    }
+  }, [userId])
 
   useEffect(() => {
     if (!userId) {
@@ -98,7 +255,7 @@ function Chat({
         return
       }
 
-      if (data && data.length > 0) {
+      if (!cancelled && data && data.length > 0) {
         setMessages((prev) =>
           prev.map((message) => {
             const updatedMessage = data.find(
@@ -110,8 +267,6 @@ function Chat({
         )
       }
     }
-
-    loadMessages()
 
     const channel = supabase
       .channel(`chat-${currentUser.id}-${userId}`)
@@ -217,6 +372,7 @@ function Chat({
       )
       .subscribe()
 
+    loadMessages()
     markMessagesAsDelivered()
 
     return () => {
@@ -302,6 +458,9 @@ function Chat({
       const mediaRecorder = new MediaRecorder(stream)
 
       mediaRecorderRef.current = mediaRecorder
+      mediaStreamRef.current = stream
+      recordingUserIdRef.current = user.id
+      discardRecordingRef.current = false
       audioChunksRef.current = []
 
       mediaRecorder.ondataavailable = (event) => {
@@ -313,9 +472,23 @@ function Chat({
       mediaRecorder.onstop = async () => {
         setRecording(false)
 
-        stream
-          .getTracks()
+        mediaStreamRef.current
+          ?.getTracks()
           .forEach((track) => track.stop())
+
+        mediaRecorderRef.current = null
+        mediaStreamRef.current = null
+
+        const shouldDiscard =
+          discardRecordingRef.current ||
+          recordingUserIdRef.current !== user.id
+
+        discardRecordingRef.current = false
+
+        if (shouldDiscard) {
+          audioChunksRef.current = []
+          return
+        }
 
         const audioBlob = new Blob(
           audioChunksRef.current,
@@ -409,150 +582,6 @@ function Chat({
       e.preventDefault()
       sendMessage()
     }
-  }
-
-  const formatTime = (seconds) => {
-    if (!Number.isFinite(seconds) || seconds <= 0) {
-      return '0:00'
-    }
-
-    const mins = Math.floor(seconds / 60)
-    const secs = Math.floor(seconds % 60)
-
-    return `${mins}:${String(secs).padStart(2, '0')}`
-  }
-
-  function VoiceMessageBubble({ src, isMine }) {
-    const audioRef = useRef(null)
-    const [isPlaying, setIsPlaying] = useState(false)
-    const [duration, setDuration] = useState(0)
-    const [currentTime, setCurrentTime] = useState(0)
-
-    const waveformBars = [
-      12, 18, 10, 26, 15,
-      22, 14, 17, 11, 20,
-      18, 28, 12, 16, 24,
-      13, 19, 14, 21, 17,
-    ]
-
-    const progress =
-      duration > 0
-        ? (currentTime / duration) * 100
-        : 0
-
-    const displayDuration =
-      duration > 0
-        ? formatTime(duration)
-        : '0:00'
-
-    const togglePlayback = async () => {
-      const audio = audioRef.current
-
-      if (!audio) {
-        return
-      }
-
-      if (audio.paused) {
-        try {
-          await audio.play()
-          setIsPlaying(true)
-        } catch (error) {
-          console.error(
-            'Ошибка воспроизведения аудио:',
-            error
-          )
-        }
-
-        return
-      }
-
-      audio.pause()
-      setIsPlaying(false)
-    }
-
-    return (
-      <div
-        className="voice-message"
-        aria-label="Voice message"
-      >
-        <button
-          type="button"
-          className={`voice-message-button ${
-            isMine ? 'mine' : 'other'
-          }`}
-          onClick={togglePlayback}
-          aria-label={
-            isPlaying
-              ? 'Пауза'
-              : 'Воспроизведение'
-          }
-        >
-          {isPlaying ? '❚❚' : '▶'}
-        </button>
-
-        <div
-          className="voice-message-wave"
-          aria-hidden="true"
-        >
-          <span
-            className="voice-message-progress"
-            style={{
-              '--voice-progress': `${progress}%`,
-            }}
-          />
-
-          {waveformBars.map((bar, index) => (
-            <span
-              key={`${bar}-${index}`}
-              className="voice-message-bar"
-              style={{
-                height: `${bar}px`,
-                opacity:
-                  index / waveformBars.length <
-                  progress / 100
-                    ? 1
-                    : 0.42,
-                transform: `scaleY(${
-                  index / waveformBars.length <
-                  progress / 100
-                    ? 1
-                    : 0.9
-                })`,
-              }}
-            />
-          ))}
-        </div>
-
-        <div className="voice-message-meta">
-          <span>
-            {formatTime(currentTime)} /{' '}
-            {displayDuration}
-          </span>
-        </div>
-
-        <audio
-          ref={audioRef}
-          className="voice-message-audio"
-          preload="metadata"
-          src={src}
-          onLoadedMetadata={(event) => {
-            setDuration(
-              event.target.duration || 0
-            )
-          }}
-          onTimeUpdate={(event) => {
-            setCurrentTime(
-              event.target.currentTime || 0
-            )
-          }}
-          onEnded={() => {
-            setIsPlaying(false)
-            setCurrentTime(0)
-          }}
-          onPause={() => setIsPlaying(false)}
-        />
-      </div>
-    )
   }
 
   if (!user) {

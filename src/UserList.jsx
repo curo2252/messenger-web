@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { supabase } from './lib/supabase'
 
 function UserList({
@@ -12,6 +12,11 @@ function UserList({
   const [users, setUsers] = useState([])
   const [search, setSearch] = useState('')
   const [loading, setLoading] = useState(true)
+  const selectedUserIdRef = useRef(selectedUser?.id)
+
+  useEffect(() => {
+    selectedUserIdRef.current = selectedUser?.id
+  }, [selectedUser?.id])
 
   useEffect(() => {
     const loadUsers = async () => {
@@ -101,7 +106,7 @@ function UserList({
 
           // Если этот чат сейчас открыт —
           // Chat.jsx сам обработает сообщение.
-          if (selectedUser?.id === senderId) {
+          if (selectedUserIdRef.current === senderId) {
             return
           }
 
@@ -122,7 +127,6 @@ function UserList({
     }
   }, [
     currentUser.id,
-    selectedUser?.id,
     setUnreadCounts,
   ])
 

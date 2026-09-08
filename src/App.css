@@ -907,6 +907,7 @@ button {
   margin: 0;
 
   font-size: 13px;
+  flex-direction: column;
   line-height: 1.6;
 }
 

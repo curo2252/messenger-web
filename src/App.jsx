@@ -1,9 +1,15 @@
 
-import { useEffect, useState } from 'react'
+import {
+  lazy,
+  Suspense,
+  useEffect,
+  useState,
+} from 'react'
 import { supabase } from './lib/supabase'
 import UserList from './UserList'
 import Chat from './Chat'
-import Call from './Call'
+
+const Call = lazy(() => import('./Call'))
 
 function App() {
   const [session, setSession] = useState(null)
@@ -285,10 +291,6 @@ function Messenger({ session }) {
       toUserId: selectedUser.id,
     }
 
-    setActiveCall({
-      roomName,
-    })
-
     const channel =
       supabase.channel('call-invites')
 
@@ -299,6 +301,10 @@ function Messenger({ session }) {
         type: 'broadcast',
         event: 'call-invite',
         payload: call,
+      })
+
+      setActiveCall({
+        roomName,
       })
     } catch (error) {
       console.error(
@@ -445,12 +451,22 @@ function Messenger({ session }) {
       )}
 
       {activeCall && (
-        <Call
-          currentUser={session.user}
-          profile={profile}
-          roomName={activeCall.roomName}
-          onLeave={leaveCall}
-        />
+        <Suspense
+          fallback={
+            <div className="call-overlay">
+              <div className="call-loading">
+                Подключение к звонку...
+              </div>
+            </div>
+          }
+        >
+          <Call
+            currentUser={session.user}
+            profile={profile}
+            roomName={activeCall.roomName}
+            onLeave={leaveCall}
+          />
+        </Suspense>
       )}
     </div>
   )
