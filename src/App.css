@@ -2213,3 +2213,119 @@ textarea {
   color: #08142f;
 }
 
+.chat-empty {
+  width: 100%;
+  height: 100%;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  position: relative;
+  overflow: hidden;
+
+  background:
+    radial-gradient(
+      circle at 20% 20%,
+      rgba(255, 255, 255, 0.95) 0%,
+      rgba(255, 255, 255, 0) 45%
+    ),
+    radial-gradient(
+      circle at 80% 80%,
+      rgba(135, 177, 235, 0.7) 0%,
+      rgba(135, 205, 235, 0) 50%
+    ),
+    linear-gradient(
+      135deg,
+      #dff0ff 0%,
+      #ffffff 45%,
+      #d8edfc 70%,
+      #b9e0f5 100%
+    );
+
+  background-size:
+    180% 180%,
+    180% 180%,
+    100% 100%;
+
+  animation: chatGradient 12s ease-in-out infinite;
+}
+
+/* Мягкое движение света по всему фону */
+@keyframes chatGradient {
+  0% {
+    background-position:
+      0% 0%,
+      100% 100%,
+      0% 0%;
+  }
+
+  25% {
+    background-position:
+      100% 0%,
+      0% 100%,
+      100% 0%;
+  }
+
+  50% {
+    background-position:
+      100% 100%,
+      0% 0%,
+      100% 100%;
+  }
+
+  75% {
+    background-position:
+      0% 100%,
+      100% 0%,
+      0% 100%;
+  }
+
+  100% {
+    background-position:
+      0% 0%,
+      100% 100%,
+      0% 0%;
+  }
+}
+
+.chat-empty-content {
+  position: relative;
+  z-index: 2;
+
+  text-align: center;
+
+  padding: 28px 38px;
+
+  background: rgba(255, 255, 255, 0.28);
+
+  border: 1px solid rgba(255, 255, 255, 0.55);
+  border-radius: 20px;
+
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+
+  box-shadow:
+    0 15px 45px rgba(60, 150, 190, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+.chat-empty-content h2 {
+  margin: 0 0 10px;
+
+  font-size: 26px;
+  font-weight: 600;
+
+  color: #24536a;
+
+  letter-spacing: -0.5px;
+}
+
+.chat-empty-content p {
+  margin: 0;
+
+  font-size: 15px;
+  font-weight: 400;
+
+  color: rgba(36, 83, 106, 0.65);
+}

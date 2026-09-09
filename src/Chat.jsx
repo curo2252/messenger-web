@@ -586,16 +586,12 @@ function Chat({
 
   if (!user) {
     return (
-      <section className="chat">
-        <div className="chat-empty">
-          <h2>Добро пожаловать 👋</h2>
-
-          <p>
-            Выберите пользователя, чтобы начать
-            общение
-          </p>
+       <div className="chat-empty">
+        <div className="chat-empty-content">
+          <h2>Добро пожаловать</h2>
+          <p>Выберите пользователя, чтобы начать общение</p>
         </div>
-      </section>
+      </div>
     )
   }
 
