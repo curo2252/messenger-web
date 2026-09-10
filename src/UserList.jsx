@@ -22,7 +22,7 @@ function UserList({
     const loadUsers = async () => {
       const { data, error } = await supabase
         .from('profiles')
-        .select('id, username, avatar_url')
+        .select('id, username, avatar_url, background_url')
         .neq('id', currentUser.id)
         .order('username')
 

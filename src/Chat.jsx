@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { supabase } from './lib/supabase'
 import MicIcon from '@mui/icons-material/Mic'
+import PhoneIcon from '@mui/icons-material/Phone'
 
 const formatTime = (seconds) => {
   if (!Number.isFinite(seconds) || seconds <= 0) {
@@ -13,6 +14,7 @@ const formatTime = (seconds) => {
   return `${mins}:${String(secs).padStart(2, '0')}`
 }
 
+const DEFAULT_CHAT_BACKGROUND = '/background.jpg'
 function VoiceMessageBubble({ src, isMine }) {
   const audioRef = useRef(null)
   const [isPlaying, setIsPlaying] = useState(false)
@@ -597,8 +599,25 @@ function Chat({
 
   const isOnline = onlineUsers?.includes(user.id)
 
+  const chatBackgroundStyle = {
+    backgroundImage: `
+      linear-gradient(
+        180deg,
+        rgba(15, 23, 42, 0.18),
+        rgba(15, 23, 42, 0.13)
+      ),
+      url(${DEFAULT_CHAT_BACKGROUND})
+    `,
+    backgroundSize: 'cover',
+    backgroundPosition: 'center',
+    backgroundRepeat: 'no-repeat',
+  }
+
   return (
-    <section className="chat">
+    <section
+      className="chat"
+      style={chatBackgroundStyle}
+    >
       <div className="chat-header">
         <button
           type="button"
@@ -637,7 +656,7 @@ function Chat({
           aria-label="Начать звонок"
           title="Начать звонок"
         >
-          🕿
+           <PhoneIcon />
         </button>
       </div>
 

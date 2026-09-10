@@ -1,12 +1,23 @@
+import {
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
 
-import { useEffect, useMemo, useState } from 'react'
 import {
   LiveKitRoom,
   RoomAudioRenderer,
   useParticipants,
   useLocalParticipant,
+  useConnectionState,
+  useRoomContext,
 } from '@livekit/components-react'
-import { TokenSource } from 'livekit-client'
+
+import {
+  ConnectionState,
+  TokenSource,
+} from 'livekit-client'
+
 import '@livekit/components-styles'
 
 const LIVEKIT_TOKEN_SERVER_ID =
@@ -17,13 +28,27 @@ function CallContent({
   onLeave,
 }) {
   const participants = useParticipants()
+
   const { localParticipant } =
     useLocalParticipant()
 
-  const [muted, setMuted] =
-    useState(false)
+  const room = useRoomContext()
+
+  const connectionState =
+    useConnectionState(room)
+
+  const muted = localParticipant
+    ? !localParticipant.isMicrophoneEnabled
+    : false
+
+  const [callError, setCallError] =
+    useState('')
 
   const toggleMute = async () => {
+    if (!localParticipant) {
+      return
+    }
+
     const nextMuted = !muted
 
     try {
@@ -31,21 +56,40 @@ function CallContent({
         !nextMuted
       )
 
-      setMuted(nextMuted)
+      setCallError('')
     } catch (error) {
       console.error(
         'Ошибка микрофона:',
         error
       )
+
+      setCallError(
+        'Не удалось изменить состояние микрофона'
+      )
     }
   }
+
+  const connectionText =
+    connectionState ===
+    ConnectionState.Connecting
+      ? 'Подключение...'
+      : connectionState ===
+        ConnectionState.Reconnecting
+        ? 'Восстановление соединения...'
+        : connectionState ===
+          ConnectionState.SignalReconnecting
+          ? 'Восстановление соединения...'
+          : connectionState ===
+            ConnectionState.Connected
+            ? 'В сети'
+            : ''
 
   return (
     <div className="call-screen">
       <div className="call-header">
         <div>
           <div className="call-title">
-             Звонок
+            Звонок
           </div>
 
           <div className="call-count">
@@ -56,6 +100,12 @@ function CallContent({
                 ? 'участника'
                 : 'участников'}
           </div>
+
+          {connectionText && (
+            <div className="call-connection-status">
+              {connectionText}
+            </div>
+          )}
         </div>
 
         <button
@@ -66,6 +116,12 @@ function CallContent({
           ×
         </button>
       </div>
+
+      {callError && (
+        <div className="call-inline-error">
+          {callError}
+        </div>
+      )}
 
       <div className="call-participants">
         {participants.map(
@@ -165,44 +221,104 @@ export default function Call({
     []
   )
 
+  const participantName = useMemo(
+    () =>
+      profile?.username ||
+      currentUser.email ||
+      'Пользователь',
+    [
+      profile?.username,
+      currentUser.email,
+    ]
+  )
+
   const [connection, setConnection] =
     useState(null)
 
   const [error, setError] =
     useState('')
 
+  const [retrying, setRetrying] =
+    useState(false)
+
   useEffect(() => {
     let cancelled = false
 
+    const wait = (ms) =>
+      new Promise((resolve) =>
+        setTimeout(resolve, ms)
+      )
+
     const connect = async () => {
-      try {
-        setError('')
-        setConnection(null)
+      setError('')
+      setConnection(null)
+      setRetrying(false)
 
-        const credentials =
-          await tokenSource.fetch({
-            roomName,
-            participantIdentity:
-              currentUser.id,
-            participantName:
-              profile?.username ||
-              currentUser.email ||
-              'Пользователь',
-          })
+      const maxAttempts = 3
 
-        if (!cancelled) {
-          setConnection(credentials)
+      for (
+        let attempt = 1;
+        attempt <= maxAttempts;
+        attempt++
+      ) {
+        if (cancelled) {
+          return
         }
-      } catch (err) {
-        console.error(
-          'Ошибка подключения к LiveKit:',
-          err
-        )
 
-        if (!cancelled) {
-          setError(
-            'Не удалось подключиться к звонку'
+        try {
+          if (attempt > 1) {
+            setRetrying(true)
+
+            await wait(
+              1000 *
+                Math.pow(
+                  2,
+                  attempt - 2
+                )
+            )
+          }
+
+          const credentials =
+            await tokenSource.fetch({
+              roomName,
+              participantIdentity:
+                currentUser.id,
+              participantName,
+            })
+
+          if (cancelled) {
+            return
+          }
+
+          if (
+            !credentials?.participantToken ||
+            !credentials?.serverUrl
+          ) {
+            throw new Error(
+              'LiveKit вернул неполные данные подключения'
+            )
+          }
+
+          setRetrying(false)
+          setConnection(credentials)
+
+          return
+        } catch (err) {
+          console.error(
+            `Ошибка подключения к LiveKit (попытка ${attempt}/${maxAttempts}):`,
+            err
           )
+
+          if (
+            attempt === maxAttempts &&
+            !cancelled
+          ) {
+            setRetrying(false)
+
+            setError(
+              'Не удалось подключиться к звонку. Проверьте соединение и попробуйте ещё раз.'
+            )
+          }
         }
       }
     }
@@ -216,9 +332,30 @@ export default function Call({
     tokenSource,
     roomName,
     currentUser.id,
-    currentUser.email,
-    profile?.username,
+    participantName,
   ])
+
+  const handleLiveKitError = (err) => {
+    console.error(
+      'Ошибка LiveKit:',
+      err
+    )
+
+    setError(
+      'Произошла ошибка соединения'
+    )
+  }
+
+  const handleDisconnected = (
+    reason
+  ) => {
+    console.log(
+      'LiveKit отключён:',
+      reason
+    )
+
+    onLeave()
+  }
 
   if (error) {
     return (
@@ -242,7 +379,9 @@ export default function Call({
     return (
       <div className="call-overlay">
         <div className="call-loading">
-          Подключение к звонку...
+          {retrying
+            ? 'Повторное подключение к звонку...'
+            : 'Подключение к звонку...'}
         </div>
       </div>
     )
@@ -260,7 +399,10 @@ export default function Call({
         connect={true}
         audio={true}
         video={false}
-        onDisconnected={onLeave}
+        onError={handleLiveKitError}
+        onDisconnected={
+          handleDisconnected
+        }
       >
         <CallContent
           currentUser={currentUser}
@@ -270,4 +412,3 @@ export default function Call({
     </div>
   )
 }
-

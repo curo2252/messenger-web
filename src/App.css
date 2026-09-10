@@ -781,10 +781,10 @@ button {
   background:
     radial-gradient(
       circle at 70% 10%,
-      rgba(138, 167, 255, 0.1),
-      transparent 28%
+      rgba(138, 167, 255, 0.12),
+      transparent 30%
     ),
-    rgba(255, 255, 255, 0.15);
+    rgba(255, 255, 255, 0.18);
 }
 
 /* =========================================================
@@ -801,9 +801,11 @@ button {
   display: flex;
   align-items: center;
 
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid rgba(148, 163, 184, 0.26);
 
-  background: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.26);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 
   overflow: hidden;
 }
@@ -945,6 +947,15 @@ button {
   overscroll-behavior: contain;
 
   scroll-behavior: auto;
+
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(15, 23, 42, 0.18),
+      rgba(15, 23, 42, 0.14)
+    ),
+    url('/background.jpg') center / cover no-repeat;
 }
 
 /* =========================================================
@@ -1158,9 +1169,11 @@ button {
 
   gap: 10px;
 
-  border-top: 1px solid var(--border);
+  border-top: 1px solid rgba(148, 163, 184, 0.26);
 
-  background: rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 
   overflow: hidden;
 }
@@ -1288,7 +1301,7 @@ button {
 
   padding: 20px;
 
-  background: rgba(92, 107, 136, 0.18);
+  background: rgba(92, 107, 136, 0);
 
   backdrop-filter: blur(10px);
 

@@ -3,7 +3,7 @@ import {
   lazy,
   Suspense,
   useEffect,
-  useRef, 
+  useRef,
   useState,
 } from 'react'
 import { supabase } from './lib/supabase'
@@ -199,6 +199,7 @@ function Messenger({ session }) {
   const [unreadCounts, setUnreadCounts] = useState({})
   const [activeCall, setActiveCall] = useState(null)
   const [incomingCall, setIncomingCall] = useState(null)
+
   const callChannelRef = useRef(null)
 
   useEffect(() => {
@@ -251,92 +252,117 @@ function Messenger({ session }) {
     }
   }, [session.user.id])
 
- useEffect(() => {
-  const channel = supabase.channel('call-invites')
+  useEffect(() => {
+    const channel =
+      supabase.channel('call-invites')
 
-  callChannelRef.current = channel
+    callChannelRef.current = channel
 
-  channel.on(
-    'broadcast',
-    { event: 'call-invite' },
-    ({ payload }) => {
-      if (
-        payload.toUserId !== session.user.id
-      ) {
-        return
+    channel.on(
+      'broadcast',
+      { event: 'call-invite' },
+      ({ payload }) => {
+        if (
+          payload.toUserId !==
+          session.user.id
+        ) {
+          return
+        }
+
+        if (
+          payload.callerId ===
+          session.user.id
+        ) {
+          return
+        }
+
+        if (activeCall) {
+          return
+        }
+
+        setIncomingCall(payload)
       }
-
-      if (payload.callerId === session.user.id) {
-        return
-      }
-
-      setIncomingCall(payload)
-    }
-  )
-
-  channel.subscribe((status) => {
-    if (status === 'SUBSCRIBED') {
-      console.log('Канал звонков подключён')
-    }
-  })
-
-  return () => {
-    callChannelRef.current = null
-    supabase.removeChannel(channel)
-  }
-}, [session.user.id])
-const startCall = async () => {
-  if (!selectedUser) {
-    return
-  }
-
-  const channel = callChannelRef.current
-
-  if (!channel) {
-    console.error(
-      'Канал звонков ещё не подключён'
     )
-    return
-  }
 
-  const roomName =
-    `call-${crypto.randomUUID()}`
-
-  const call = {
-    roomName,
-    callerId: session.user.id,
-    callerName:
-      profile?.username ||
-      session.user.email ||
-      'Пользователь',
-    toUserId: selectedUser.id,
-  }
-
-  try {
-    await channel.send({
-      type: 'broadcast',
-      event: 'call-invite',
-      payload: call,
+    channel.subscribe((status) => {
+      if (status === 'SUBSCRIBED') {
+        console.log(
+          'Канал звонков подключён'
+        )
+      }
     })
 
-    setActiveCall({
+    return () => {
+      callChannelRef.current = null
+      supabase.removeChannel(channel)
+    }
+  }, [
+    session.user.id,
+    activeCall,
+  ])
+
+  const startCall = async () => {
+    if (!selectedUser) {
+      return
+    }
+
+    if (activeCall) {
+      return
+    }
+
+    const channel =
+      callChannelRef.current
+
+    if (!channel) {
+      console.error(
+        'Канал звонков ещё не подключён'
+      )
+      return
+    }
+
+    const roomName =
+      `call-${crypto.randomUUID()}`
+
+    const call = {
       roomName,
-    })
-  } catch (error) {
-    console.error(
-      'Ошибка отправки приглашения:',
-      error
-    )
+      callerId: session.user.id,
+      callerName:
+        profile?.username ||
+        session.user.email ||
+        'Пользователь',
+      toUserId: selectedUser.id,
+    }
+
+    try {
+      await channel.send({
+        type: 'broadcast',
+        event: 'call-invite',
+        payload: call,
+      })
+
+      setActiveCall({
+        roomName,
+      })
+    } catch (error) {
+      console.error(
+        'Ошибка отправки приглашения:',
+        error
+      )
+    }
   }
-}
 
   const acceptCall = () => {
     if (!incomingCall) {
       return
     }
 
+    if (activeCall) {
+      return
+    }
+
     setActiveCall({
-      roomName: incomingCall.roomName,
+      roomName:
+        incomingCall.roomName,
     })
 
     setIncomingCall(null)
@@ -362,7 +388,9 @@ const startCall = async () => {
         <div className="user-info">
           <button
             className="profile-trigger"
-            onClick={() => setShowProfile(true)}
+            onClick={() =>
+              setShowProfile(true)
+            }
           >
             <div className="profile-trigger-avatar">
               {(
@@ -377,7 +405,9 @@ const startCall = async () => {
             </span>
           </button>
 
-          <button onClick={handleLogout}>
+          <button
+            onClick={handleLogout}
+          >
             Выйти
           </button>
         </div>
@@ -403,14 +433,18 @@ const startCall = async () => {
           }}
           onlineUsers={onlineUsers}
           unreadCounts={unreadCounts}
-          setUnreadCounts={setUnreadCounts}
+          setUnreadCounts={
+            setUnreadCounts
+          }
         />
 
         <Chat
           currentUser={session.user}
           user={selectedUser}
           onlineUsers={onlineUsers}
-          onBack={() => setSelectedUser(null)}
+          onBack={() =>
+            setSelectedUser(null)
+          }
           onStartCall={startCall}
         />
       </main>
@@ -420,47 +454,54 @@ const startCall = async () => {
           session={session}
           profile={profile}
           setProfile={setProfile}
-          onClose={() => setShowProfile(false)}
+          onClose={() =>
+            setShowProfile(false)
+          }
         />
       )}
 
-      {incomingCall && !activeCall && (
-        <div className="incoming-call-overlay">
-          <div className="incoming-call-card">
-            <div className="incoming-call-avatar">
-              {(
-                incomingCall.callerName ||
-                'П'
-              )[0].toUpperCase()}
-            </div>
+      {incomingCall &&
+        !activeCall && (
+          <div className="incoming-call-overlay">
+            <div className="incoming-call-card">
+              <div className="incoming-call-avatar">
+                {(
+                  incomingCall.callerName ||
+                  'П'
+                )[0].toUpperCase()}
+              </div>
 
-            <div className="incoming-call-title">
-              Входящий звонок
-            </div>
+              <div className="incoming-call-title">
+                Входящий звонок
+              </div>
 
-            <div className="incoming-call-name">
-              {incomingCall.callerName ||
-                'Пользователь'}
-            </div>
+              <div className="incoming-call-name">
+                {incomingCall.callerName ||
+                  'Пользователь'}
+              </div>
 
-            <div className="incoming-call-actions">
-              <button
-                className="incoming-call-decline"
-                onClick={declineCall}
-              >
-                Отклонить
-              </button>
+              <div className="incoming-call-actions">
+                <button
+                  className="incoming-call-decline"
+                  onClick={
+                    declineCall
+                  }
+                >
+                  Отклонить
+                </button>
 
-              <button
-                className="incoming-call-accept"
-                onClick={acceptCall}
-              >
-                Принять
-              </button>
+                <button
+                  className="incoming-call-accept"
+                  onClick={
+                    acceptCall
+                  }
+                >
+                  Принять
+                </button>
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {activeCall && (
         <Suspense
@@ -475,7 +516,9 @@ const startCall = async () => {
           <Call
             currentUser={session.user}
             profile={profile}
-            roomName={activeCall.roomName}
+            roomName={
+              activeCall.roomName
+            }
             onLeave={leaveCall}
           />
         </Suspense>
@@ -490,26 +533,40 @@ function ProfileModal({
   setProfile,
   onClose,
 }) {
-  const [editing, setEditing] = useState(false)
-  const [username, setUsername] = useState(
-    profile?.username || ''
-  )
-  const [saving, setSaving] = useState(false)
-  const [error, setError] = useState('')
+  const [editing, setEditing] =
+    useState(false)
 
-  const registrationDate = new Date(
-    session.user.created_at
-  ).toLocaleDateString('ru-RU', {
-    day: 'numeric',
-    month: 'long',
-    year: 'numeric',
-  })
+  const [username, setUsername] =
+    useState(
+      profile?.username || ''
+    )
+
+  const [saving, setSaving] =
+    useState(false)
+
+  const [error, setError] =
+    useState('')
+
+  const registrationDate =
+    new Date(
+      session.user.created_at
+    ).toLocaleDateString(
+      'ru-RU',
+      {
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      }
+    )
 
   const handleSave = async () => {
-    const newUsername = username.trim()
+    const newUsername =
+      username.trim()
 
     if (!newUsername) {
-      setError('Введите имя пользователя')
+      setError(
+        'Введите имя пользователя'
+      )
       return
     }
 
@@ -530,23 +587,32 @@ function ProfileModal({
     setSaving(true)
     setError('')
 
-    const { data, error: updateError } =
-      await supabase
-        .from('profiles')
-        .update({
-          username: newUsername,
-        })
-        .eq('id', session.user.id)
-        .select('username, avatar_url')
-        .single()
+    const {
+      data,
+      error: updateError,
+    } = await supabase
+      .from('profiles')
+      .update({
+        username: newUsername,
+      })
+      .eq('id', session.user.id)
+      .select(
+        'username, avatar_url'
+      )
+      .single()
 
     if (updateError) {
-      if (updateError.code === '23505') {
+      if (
+        updateError.code ===
+        '23505'
+      ) {
         setError(
           'Это имя пользователя уже занято'
         )
       } else {
-        setError(updateError.message)
+        setError(
+          updateError.message
+        )
       }
 
       setSaving(false)
@@ -560,7 +626,10 @@ function ProfileModal({
   }
 
   const handleOverlayClick = (e) => {
-    if (e.target === e.currentTarget) {
+    if (
+      e.target ===
+      e.currentTarget
+    ) {
       onClose()
     }
   }
@@ -568,7 +637,9 @@ function ProfileModal({
   return (
     <div
       className="profile-overlay"
-      onClick={handleOverlayClick}
+      onClick={
+        handleOverlayClick
+      }
     >
       <div className="profile-modal">
         <button
@@ -607,7 +678,9 @@ function ProfileModal({
                 type="text"
                 value={username}
                 onChange={(e) =>
-                  setUsername(e.target.value)
+                  setUsername(
+                    e.target.value
+                  )
                 }
                 maxLength={20}
                 autoFocus
@@ -651,7 +724,8 @@ function ProfileModal({
             className="profile-edit-button"
             onClick={() => {
               setUsername(
-                profile?.username || ''
+                profile?.username ||
+                  ''
               )
               setError('')
               setEditing(true)
@@ -665,7 +739,8 @@ function ProfileModal({
               className="profile-cancel-button"
               onClick={() => {
                 setUsername(
-                  profile?.username || ''
+                  profile?.username ||
+                    ''
                 )
                 setError('')
                 setEditing(false)
@@ -692,4 +767,3 @@ function ProfileModal({
 }
 
 export default App
-
