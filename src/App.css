@@ -1168,7 +1168,7 @@ button {
 
   border-top: 1px solid rgba(148, 163, 184, 0.26);
 
-  background: rgba(255, 255, 255, 0);
+  background: rgba(255, 255, 255, 0.404);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 
