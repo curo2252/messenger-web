@@ -107,14 +107,6 @@ function CallContent({
             </div>
           )}
         </div>
-
-        <button
-          className="call-close"
-          onClick={onLeave}
-          aria-label="Закрыть"
-        >
-          ×
-        </button>
       </div>
 
       {callError && (

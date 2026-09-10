@@ -199,6 +199,9 @@ function Messenger({ session }) {
   const [unreadCounts, setUnreadCounts] = useState({})
   const [activeCall, setActiveCall] = useState(null)
   const [incomingCall, setIncomingCall] = useState(null)
+  const [callSetupOpen, setCallSetupOpen] = useState(false)
+  const [callParticipants, setCallParticipants] = useState([])
+  const [availableUsers, setAvailableUsers] = useState([])
 
   const callChannelRef = useRef(null)
 
@@ -216,6 +219,22 @@ function Messenger({ session }) {
     }
 
     loadProfile()
+  }, [session.user.id])
+
+  useEffect(() => {
+    const loadUsers = async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id, username, avatar_url')
+        .neq('id', session.user.id)
+        .order('username')
+
+      if (!error) {
+        setAvailableUsers(data || [])
+      }
+    }
+
+    loadUsers()
   }, [session.user.id])
 
   useEffect(() => {
@@ -301,8 +320,42 @@ function Messenger({ session }) {
     activeCall,
   ])
 
-  const startCall = async () => {
-    if (!selectedUser) {
+  const openCallSetup = () => {
+    setCallParticipants(
+      selectedUser ? [selectedUser] : []
+    )
+    setCallSetupOpen(true)
+  }
+
+  const closeCallSetup = () => {
+    setCallSetupOpen(false)
+    setCallParticipants([])
+  }
+
+  const toggleCallParticipant = (user) => {
+    setCallParticipants((prev) => {
+      const exists = prev.some(
+        (item) => item.id === user.id
+      )
+
+      if (exists) {
+        return prev.filter(
+          (item) => item.id !== user.id
+        )
+      }
+
+      if (prev.length >= 9) {
+        return prev
+      }
+
+      return [...prev, user]
+    })
+  }
+
+  const startCall = async (
+    participants = callParticipants
+  ) => {
+    if (!participants.length) {
       return
     }
 
@@ -323,23 +376,35 @@ function Messenger({ session }) {
     const roomName =
       `call-${crypto.randomUUID()}`
 
-    const call = {
-      roomName,
-      callerId: session.user.id,
-      callerName:
-        profile?.username ||
-        session.user.email ||
-        'Пользователь',
-      toUserId: selectedUser.id,
-    }
-
     try {
-      await channel.send({
-        type: 'broadcast',
-        event: 'call-invite',
-        payload: call,
-      })
+      const recipients = participants.filter(
+        (user) => user.id !== session.user.id
+      )
 
+      if (recipients.length === 0) {
+        return
+      }
+
+      for (const user of recipients) {
+        const call = {
+          roomName,
+          callerId: session.user.id,
+          callerName:
+            profile?.username ||
+            session.user.email ||
+            'Пользователь',
+          toUserId: user.id,
+        }
+
+        await channel.send({
+          type: 'broadcast',
+          event: 'call-invite',
+          payload: call,
+        })
+      }
+
+      setCallSetupOpen(false)
+      setCallParticipants([])
       setActiveCall({
         roomName,
       })
@@ -445,7 +510,7 @@ function Messenger({ session }) {
           onBack={() =>
             setSelectedUser(null)
           }
-          onStartCall={startCall}
+          onStartCall={openCallSetup}
         />
       </main>
 
@@ -502,6 +567,98 @@ function Messenger({ session }) {
             </div>
           </div>
         )}
+
+      {callSetupOpen && (
+        <div className="call-setup-overlay">
+          <div className="call-setup-card">
+            <div className="call-setup-header">
+              <div>
+                <div className="call-setup-title">
+                  Добавить участников
+                </div>
+
+                <div className="call-setup-caption">
+                  {callParticipants.length + 1}{' '}
+                  {callParticipants.length === 0
+                    ? 'участник'
+                    : callParticipants.length < 9
+                      ? 'участника'
+                      : 'участников'}
+                </div>
+              </div>
+
+              <button
+                className="call-setup-close"
+                onClick={closeCallSetup}
+                aria-label="Закрыть"
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="call-setup-list">
+              {availableUsers.map((user) => {
+                const selected = callParticipants.some(
+                  (item) => item.id === user.id
+                )
+
+                return (
+                  <button
+                    key={user.id}
+                    type="button"
+                    className={`call-setup-item ${
+                      selected ? 'selected' : ''
+                    }`}
+                    onClick={() =>
+                      toggleCallParticipant(user)
+                    }
+                  >
+                    <div className="call-setup-avatar">
+                      {user.username[0]?.toUpperCase() ||
+                        '?'}
+                    </div>
+
+                    <div className="call-setup-user">
+                      <div className="call-setup-name">
+                        {user.username}
+                      </div>
+
+                      <div className="call-setup-meta">
+                        {selected
+                          ? 'Добавлен'
+                          : 'Добавить'}
+                      </div>
+                    </div>
+
+                    <div className="call-setup-check">
+                      {selected ? '✓' : '+'}
+                    </div>
+                  </button>
+                )
+              })}
+            </div>
+
+            <div className="call-setup-actions">
+              <button
+                className="call-setup-cancel"
+                onClick={closeCallSetup}
+              >
+                Отмена
+              </button>
+
+              <button
+                className="call-setup-confirm"
+                onClick={() =>
+                  startCall(callParticipants)
+                }
+                disabled={callParticipants.length === 0}
+              >
+                Начать звонок
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {activeCall && (
         <Suspense

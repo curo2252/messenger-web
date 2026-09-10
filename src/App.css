@@ -571,16 +571,20 @@ button {
   overscroll-behavior: contain;
 }
 
-.users::-webkit-scrollbar,
-.messages::-webkit-scrollbar {
-  width: 6px;
+.users,
+.messages,
+.call-participants,
+.call-setup-list {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-.users::-webkit-scrollbar-thumb,
-.messages::-webkit-scrollbar-thumb {
-  background: rgba(132, 146, 175, 0.2);
-
-  border-radius: 10px;
+.users::-webkit-scrollbar,
+.messages::-webkit-scrollbar,
+.call-participants::-webkit-scrollbar,
+.call-setup-list::-webkit-scrollbar {
+  width: 0;
+  height: 0;
 }
 
 .users > p {
@@ -1899,32 +1903,6 @@ textarea {
   font-weight: 600;
 }
 
-.call-close {
-  width: 38px;
-  height: 38px;
-
-  border: 1px solid var(--border);
-  border-radius: 50%;
-
-  background: rgba(255, 255, 255, 0.62);
-  color: var(--text);
-
-  font-size: 24px;
-  cursor: pointer;
-
-  transition:
-    background var(--transition),
-    transform var(--transition),
-    border-color var(--transition),
-    box-shadow var(--transition);
-}
-
-.call-close:hover {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(126, 150, 231, 0.38);
-  box-shadow: 0 10px 22px rgba(126, 150, 231, 0.12);
-}
-
 .call-participants {
   flex: 1;
 
@@ -2115,9 +2093,9 @@ textarea {
   border: 0;
   border-radius: 50%;
 
-  background: rgba(157, 167, 180, 0.736);
+  background: rgba(255, 255, 255, 0.736);
 
-  color: #060880;
+  color: #020332;
 
   font-size: 17px;
 
@@ -2339,6 +2317,206 @@ textarea {
   color: #24355b;
   box-shadow:
     0 12px 24px rgba(138, 167, 255, 0.18);
+}
+
+.call-setup-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 1001;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  background: rgba(28, 39, 58, 0.24);
+  backdrop-filter: blur(14px);
+}
+
+.call-setup-card {
+  width: min(480px, calc(100% - 32px));
+
+  padding: 24px;
+
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 28px;
+
+  background:
+    linear-gradient(
+      180deg,
+      rgba(255, 255, 255, 0.86),
+      rgba(240, 246, 255, 0.76)
+    );
+
+  box-shadow:
+    0 34px 90px rgba(128, 148, 190, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.85);
+}
+
+.call-setup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.call-setup-title {
+  color: var(--text);
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.call-setup-caption {
+  margin-top: 4px;
+
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.call-setup-close {
+  width: 36px;
+  height: 36px;
+
+  border: 1px solid var(--border);
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.7);
+  color: var(--text);
+
+  font-size: 24px;
+  cursor: pointer;
+}
+
+.call-setup-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+
+  margin-top: 20px;
+  max-height: 380px;
+  overflow-y: auto;
+}
+
+.call-setup-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+
+  width: 100%;
+  padding: 12px 14px;
+
+  border: 1px solid var(--border);
+  border-radius: 16px;
+
+  background: rgba(255, 255, 255, 0.5);
+  color: var(--text);
+
+  text-align: left;
+  cursor: pointer;
+  transition:
+    border-color var(--transition),
+    background var(--transition),
+    transform var(--transition);
+}
+
+.call-setup-item:hover {
+  border-color: rgba(126, 150, 231, 0.5);
+  transform: translateY(-1px);
+}
+
+.call-setup-item.selected {
+  border-color: rgba(126, 150, 231, 0.6);
+  background: rgba(138, 167, 255, 0.12);
+}
+
+.call-setup-avatar {
+  width: 42px;
+  height: 42px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: linear-gradient(
+    135deg,
+    var(--primary),
+    #bed0ff
+  );
+
+  color: #2a3d66;
+  font-weight: 700;
+}
+
+.call-setup-user {
+  flex: 1;
+}
+
+.call-setup-name {
+  font-weight: 600;
+}
+
+.call-setup-meta {
+  margin-top: 2px;
+
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.call-setup-check {
+  width: 28px;
+  height: 28px;
+
+  display: flex;
+  align-items: center;
+  justify-content: center;
+
+  border-radius: 50%;
+
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--primary-strong);
+  font-weight: 700;
+}
+
+.call-setup-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+
+  margin-top: 22px;
+}
+
+.call-setup-cancel,
+.call-setup-confirm {
+  height: 44px;
+
+  padding: 0 18px;
+
+  border: none;
+  border-radius: 12px;
+
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.call-setup-cancel {
+  background: rgba(255, 255, 255, 0.648);
+  color: var(--text);
+}
+
+.call-setup-confirm {
+  background: linear-gradient(
+    135deg,
+    var(--primary),
+    #bfd1ff
+  );
+  color: #24355b;
+  box-shadow: 0 12px 24px rgba(138, 167, 255, 0.18);
+}
+
+.call-setup-confirm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 .chat-empty {
