@@ -144,6 +144,7 @@ function Chat({
   onlineUsers,
   onBack,
   onStartCall,
+  callActive,
 }) {
   const [messages, setMessages] = useState([])
   const [newMessage, setNewMessage] = useState('')
@@ -653,10 +654,11 @@ function Chat({
           type="button"
           className="call-button"
           onClick={onStartCall}
+          disabled={callActive}
           aria-label="Начать звонок"
-          title="Начать звонок"
+          title={callActive ? 'Вы уже в звонке' : 'Начать звонок'}
         >
-           <PhoneIcon />
+          <PhoneIcon />
         </button>
       </div>
 

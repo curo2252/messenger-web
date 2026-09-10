@@ -1,4 +1,3 @@
-
 import {
   lazy,
   Suspense,
@@ -202,8 +201,37 @@ function Messenger({ session }) {
   const [callSetupOpen, setCallSetupOpen] = useState(false)
   const [callParticipants, setCallParticipants] = useState([])
   const [availableUsers, setAvailableUsers] = useState([])
+  const [callNotice, setCallNotice] = useState('')
 
   const callChannelRef = useRef(null)
+  const activeCallRef = useRef(null)
+  const incomingCallRef = useRef(null)
+  const profileRef = useRef(profile)
+  const callNoticeTimeoutRef = useRef(null)
+
+  useEffect(() => {
+    activeCallRef.current = activeCall
+  }, [activeCall])
+
+  useEffect(() => {
+    incomingCallRef.current = incomingCall
+  }, [incomingCall])
+
+  useEffect(() => {
+    profileRef.current = profile
+  }, [profile])
+
+  const showCallNotice = (text) => {
+    setCallNotice(text)
+
+    if (callNoticeTimeoutRef.current) {
+      clearTimeout(callNoticeTimeoutRef.current)
+    }
+
+    callNoticeTimeoutRef.current = setTimeout(() => {
+      setCallNotice('')
+    }, 4000)
+  }
 
   useEffect(() => {
     const loadProfile = async () => {
@@ -272,10 +300,30 @@ function Messenger({ session }) {
   }, [session.user.id])
 
   useEffect(() => {
-    const channel =
-      supabase.channel('call-invites')
+    const channel = supabase.channel('call-invites')
 
     callChannelRef.current = channel
+
+    const sendResponse = (
+      roomName,
+      toUserId,
+      type
+    ) => {
+      channel.send({
+        type: 'broadcast',
+        event: 'call-response',
+        payload: {
+          roomName,
+          toUserId,
+          fromUserId: session.user.id,
+          fromUserName:
+            profileRef.current?.username ||
+            session.user.email ||
+            'Пользователь',
+          type,
+        },
+      })
+    }
 
     channel.on(
       'broadcast',
@@ -295,11 +343,55 @@ function Messenger({ session }) {
           return
         }
 
-        if (activeCall) {
+        if (
+          activeCallRef.current ||
+          incomingCallRef.current
+        ) {
+          sendResponse(
+            payload.roomName,
+            payload.callerId,
+            'busy'
+          )
           return
         }
 
         setIncomingCall(payload)
+      }
+    )
+
+    channel.on(
+      'broadcast',
+      { event: 'call-response' },
+      ({ payload }) => {
+        if (
+          payload.toUserId !==
+          session.user.id
+        ) {
+          return
+        }
+
+        const text =
+          payload.type === 'busy'
+            ? `${payload.fromUserName} сейчас на другом звонке`
+            : payload.type === 'timeout'
+              ? `${payload.fromUserName} не ответил(а)`
+              : `${payload.fromUserName} отклонил(а) звонок`
+
+        showCallNotice(text)
+      }
+    )
+
+    channel.on(
+      'broadcast',
+      { event: 'call-cancel' },
+      ({ payload }) => {
+        setIncomingCall((current) =>
+          current &&
+          current.roomName ===
+            payload.roomName
+            ? null
+            : current
+        )
       }
     )
 
@@ -315,12 +407,51 @@ function Messenger({ session }) {
       callChannelRef.current = null
       supabase.removeChannel(channel)
     }
+  }, [session.user.id])
+
+  useEffect(() => {
+    if (!incomingCall || activeCall) {
+      return
+    }
+
+    const timer = setTimeout(() => {
+      callChannelRef.current?.send({
+        type: 'broadcast',
+        event: 'call-response',
+        payload: {
+          roomName:
+            incomingCall.roomName,
+          toUserId:
+            incomingCall.callerId,
+          fromUserId:
+            session.user.id,
+          fromUserName:
+            profile?.username ||
+            session.user.email ||
+            'Пользователь',
+          type: 'timeout',
+        },
+      })
+
+      setIncomingCall(null)
+    }, 45000)
+
+    return () => clearTimeout(timer)
   }, [
-    session.user.id,
+    incomingCall,
     activeCall,
+    session.user.id,
+    profile?.username,
   ])
 
   const openCallSetup = () => {
+    if (activeCall) {
+      showCallNotice(
+        'Вы уже в звонке'
+      )
+      return
+    }
+
     setCallParticipants(
       selectedUser ? [selectedUser] : []
     )
@@ -376,19 +507,24 @@ function Messenger({ session }) {
     const roomName =
       `call-${crypto.randomUUID()}`
 
-    try {
-      const recipients = participants.filter(
-        (user) => user.id !== session.user.id
+    const recipients =
+      participants.filter(
+        (user) =>
+          user.id !== session.user.id
       )
 
-      if (recipients.length === 0) {
-        return
-      }
+    if (recipients.length === 0) {
+      return
+    }
 
+    const invitedUserIds = []
+
+    try {
       for (const user of recipients) {
         const call = {
           roomName,
-          callerId: session.user.id,
+          callerId:
+            session.user.id,
           callerName:
             profile?.username ||
             session.user.email ||
@@ -401,17 +537,31 @@ function Messenger({ session }) {
           event: 'call-invite',
           payload: call,
         })
+
+        invitedUserIds.push(user.id)
       }
 
       setCallSetupOpen(false)
       setCallParticipants([])
-      setActiveCall({
-        roomName,
-      })
+      setActiveCall({ roomName })
     } catch (error) {
       console.error(
         'Ошибка отправки приглашения:',
         error
+      )
+
+      if (invitedUserIds.length > 0) {
+        channel.send({
+          type: 'broadcast',
+          event: 'call-cancel',
+          payload: {
+            roomName,
+          },
+        })
+      }
+
+      showCallNotice(
+        'Не удалось начать звонок. Попробуйте снова.'
       )
     }
   }
@@ -434,10 +584,43 @@ function Messenger({ session }) {
   }
 
   const declineCall = () => {
+    if (!incomingCall) {
+      return
+    }
+
+    callChannelRef.current?.send({
+      type: 'broadcast',
+      event: 'call-response',
+      payload: {
+        roomName:
+          incomingCall.roomName,
+        toUserId:
+          incomingCall.callerId,
+        fromUserId:
+          session.user.id,
+        fromUserName:
+          profile?.username ||
+          session.user.email ||
+          'Пользователь',
+        type: 'decline',
+      },
+    })
+
     setIncomingCall(null)
   }
 
   const leaveCall = () => {
+    if (activeCall) {
+      callChannelRef.current?.send({
+        type: 'broadcast',
+        event: 'call-cancel',
+        payload: {
+          roomName:
+            activeCall.roomName,
+        },
+      })
+    }
+
     setActiveCall(null)
   }
 
@@ -511,6 +694,7 @@ function Messenger({ session }) {
             setSelectedUser(null)
           }
           onStartCall={openCallSetup}
+          callActive={!!activeCall}
         />
       </main>
 
@@ -523,6 +707,12 @@ function Messenger({ session }) {
             setShowProfile(false)
           }
         />
+      )}
+
+      {callNotice && (
+        <div className="call-notice-toast">
+          {callNotice}
+        </div>
       )}
 
       {incomingCall &&
@@ -598,19 +788,25 @@ function Messenger({ session }) {
 
             <div className="call-setup-list">
               {availableUsers.map((user) => {
-                const selected = callParticipants.some(
-                  (item) => item.id === user.id
-                )
+                const selected =
+                  callParticipants.some(
+                    (item) =>
+                      item.id === user.id
+                  )
 
                 return (
                   <button
                     key={user.id}
                     type="button"
                     className={`call-setup-item ${
-                      selected ? 'selected' : ''
+                      selected
+                        ? 'selected'
+                        : ''
                     }`}
                     onClick={() =>
-                      toggleCallParticipant(user)
+                      toggleCallParticipant(
+                        user
+                      )
                     }
                   >
                     <div className="call-setup-avatar">
@@ -649,9 +845,14 @@ function Messenger({ session }) {
               <button
                 className="call-setup-confirm"
                 onClick={() =>
-                  startCall(callParticipants)
+                  startCall(
+                    callParticipants
+                  )
                 }
-                disabled={callParticipants.length === 0}
+                disabled={
+                  callParticipants.length ===
+                  0
+                }
               >
                 Начать звонок
               </button>
