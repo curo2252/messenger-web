@@ -407,7 +407,7 @@ function Messenger({ session }) {
       callChannelRef.current = null
       supabase.removeChannel(channel)
     }
-  }, [session.user.id])
+  }, [session.user.email, session.user.id])
 
   useEffect(() => {
     if (!incomingCall || activeCall) {
@@ -440,6 +440,7 @@ function Messenger({ session }) {
   }, [
     incomingCall,
     activeCall,
+    session.user.email,
     session.user.id,
     profile?.username,
   ])
