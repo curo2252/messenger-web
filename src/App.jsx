@@ -202,6 +202,7 @@ function Messenger({ session }) {
   const [callParticipants, setCallParticipants] = useState([])
   const [availableUsers, setAvailableUsers] = useState([])
   const [callNotice, setCallNotice] = useState('')
+  const [callType, setCallType] = useState('audio')
 
   const callChannelRef = useRef(null)
   const activeCallRef = useRef(null)
@@ -355,7 +356,11 @@ function Messenger({ session }) {
           return
         }
 
-        setIncomingCall(payload)
+        setIncomingCall({
+          ...payload,
+          callType:
+            payload.callType || 'audio',
+        })
       }
     )
 
@@ -445,7 +450,7 @@ function Messenger({ session }) {
     profile?.username,
   ])
 
-  const openCallSetup = () => {
+  const openCallSetup = (type = 'audio') => {
     if (activeCall) {
       showCallNotice(
         'Вы уже в звонке'
@@ -453,9 +458,12 @@ function Messenger({ session }) {
       return
     }
 
+    setCallType(type)
+
     setCallParticipants(
       selectedUser ? [selectedUser] : []
     )
+
     setCallSetupOpen(true)
   }
 
@@ -531,6 +539,7 @@ function Messenger({ session }) {
             session.user.email ||
             'Пользователь',
           toUserId: user.id,
+          callType,
         }
 
         await channel.send({
@@ -544,7 +553,11 @@ function Messenger({ session }) {
 
       setCallSetupOpen(false)
       setCallParticipants([])
-      setActiveCall({ roomName })
+
+      setActiveCall({
+        roomName,
+        callType,
+      })
     } catch (error) {
       console.error(
         'Ошибка отправки приглашения:',
@@ -579,6 +592,9 @@ function Messenger({ session }) {
     setActiveCall({
       roomName:
         incomingCall.roomName,
+      callType:
+        incomingCall.callType ||
+        'audio',
     })
 
     setIncomingCall(null)
@@ -623,6 +639,43 @@ function Messenger({ session }) {
     }
 
     setActiveCall(null)
+  }
+
+  const inviteUserToActiveCall = async (user) => {
+    const channel = callChannelRef.current
+
+    if (!activeCall || !channel) {
+      showCallNotice('Не удалось отправить приглашение')
+      return false
+    }
+
+    try {
+      const status = await channel.send({
+        type: 'broadcast',
+        event: 'call-invite',
+        payload: {
+          roomName: activeCall.roomName,
+          callerId: session.user.id,
+          callerName:
+            profile?.username ||
+            session.user.email ||
+            'Пользователь',
+          toUserId: user.id,
+          callType: activeCall.callType || 'audio',
+        },
+      })
+
+      if (status !== 'ok') {
+        throw new Error(`Не удалось отправить приглашение: ${status}`)
+      }
+
+      showCallNotice(`Приглашение отправлено: ${user.username}`)
+      return true
+    } catch (error) {
+      console.error('Ошибка приглашения в звонок:', error)
+      showCallNotice('Не удалось отправить приглашение')
+      return false
+    }
   }
 
   const handleLogout = async () => {
@@ -728,7 +781,9 @@ function Messenger({ session }) {
               </div>
 
               <div className="incoming-call-title">
-                Входящий звонок
+                {incomingCall.callType === 'video'
+                  ? 'Входящий видеозвонок'
+                  : 'Входящий звонок'}
               </div>
 
               <div className="incoming-call-name">
@@ -875,10 +930,16 @@ function Messenger({ session }) {
           <Call
             currentUser={session.user}
             profile={profile}
+            availableUsers={availableUsers}
             roomName={
               activeCall.roomName
             }
+            callType={
+              activeCall.callType ||
+              'audio'
+            }
             onLeave={leaveCall}
+            onInviteUser={inviteUserToActiveCall}
           />
         </Suspense>
       )}

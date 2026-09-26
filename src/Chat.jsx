@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { supabase } from './lib/supabase'
 import MicIcon from '@mui/icons-material/Mic'
 import PhoneIcon from '@mui/icons-material/Phone'
+import VideocamIcon from '@mui/icons-material/Videocam'
 
 const formatTime = (seconds) => {
   if (!Number.isFinite(seconds) || seconds <= 0) {
@@ -650,16 +651,27 @@ function Chat({
           </small>
         </div>
 
-        <button
-          type="button"
-          className="call-button"
-          onClick={onStartCall}
-          disabled={callActive}
-          aria-label="Начать звонок"
-          title={callActive ? 'Вы уже в звонке' : 'Начать звонок'}
-        >
-          <PhoneIcon />
-        </button>
+        <div className="call-actions">
+          <button
+            type="button"
+            className="call-button"
+            onClick={() => onStartCall('audio')}
+            disabled={callActive}
+            aria-label="Начать аудиозвонок"
+          >
+            <PhoneIcon />
+          </button>
+
+          <button
+            type="button"
+            className="call-button"
+            onClick={() => onStartCall('video')}
+            disabled={callActive}
+            aria-label="Видеозвонок"
+          >
+            <VideocamIcon />
+          </button>
+        </div>
       </div>
 
       <div className="messages">
