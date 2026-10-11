@@ -1067,7 +1067,7 @@ function ProfileModal({
           onClick={onClose}
           aria-label="Закрыть"
         >
-          ×
+          ✖
         </button>
 
         <div className="profile-avatar-large">

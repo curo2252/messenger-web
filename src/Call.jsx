@@ -7,6 +7,7 @@ import {
 import {
   LiveKitRoom,
   RoomAudioRenderer,
+  StartAudio,
   useParticipants,
   useLocalParticipant,
   useConnectionState,
@@ -51,7 +52,15 @@ function VideoTile({
 
   const cameraTrack =
     cameraPublication?.track || null
+    
 
+
+
+
+
+
+
+    
   useEffect(() => {
     if (
       !videoElement ||
@@ -595,6 +604,7 @@ function CallContent({
 
       {/* AUDIO */}
 
+      <StartAudio label="Включить звук собеседника" />
       <RoomAudioRenderer />
 
     </div>
