@@ -1974,6 +1974,7 @@ textarea {
   background: rgba(255, 255, 255, 0.2);
 }
 
+
 .call-participant-video {
   position: relative;
   isolation: isolate;
@@ -1990,10 +1991,9 @@ textarea {
     inset 0 1px 0 rgba(255, 255, 255, 0.4),
     0 8px 20px rgba(140, 158, 196, 0.06);
 
-  /* Надёжная обрезка видео по скруглению в Safari / Chrome */
-  -webkit-mask-image: -webkit-radial-gradient(white, black);
   transform: translateZ(0);
 }
+
 
 /* Плитка без камеры: мягкая "карточка" вместо пустоты */
 .call-participant-video.camera-off {
