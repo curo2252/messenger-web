@@ -1833,7 +1833,6 @@ textarea {
 
   overflow: hidden;
 
-  animation: modalIn 0.28s var(--ease);
 }
 
 /*
@@ -1844,7 +1843,7 @@ textarea {
 */
 .call-screen.video-call {
   width: min(720px, calc(100% - 32px));
-  height: min(692px, calc(100dvh - 32px));
+  height: 692px;
   max-height: calc(100dvh - 32px);
 
   border-color: rgba(255, 255, 255, 0.7);
@@ -1904,7 +1903,6 @@ textarea {
   color: var(--text);
   font-size: 20px;
   font-weight: 700;
-  letter-spacing: -0.2px;
 }
 
 .call-count {
@@ -1922,19 +1920,6 @@ textarea {
   font-weight: 600;
 }
 
-.call-inline-error {
-  margin: 12px 20px 0;
-  padding: 10px 14px;
-
-  border: 1px solid rgba(215, 122, 134, 0.22);
-  border-radius: 12px;
-
-  background: rgba(215, 122, 134, 0.1);
-  color: #b4505c;
-
-  font-size: 13px;
-  line-height: 1.4;
-}
 
 /* =========================================================
    CALL: PARTICIPANTS
@@ -1942,7 +1927,6 @@ textarea {
 
 .call-participants {
   flex: 1;
-  min-height: 0;
 
   display: grid;
   grid-template-columns: repeat(
@@ -1990,7 +1974,6 @@ textarea {
   background: rgba(255, 255, 255, 0.2);
 }
 
-
 .call-participant-video {
   position: relative;
   isolation: isolate;
@@ -2007,9 +1990,10 @@ textarea {
     inset 0 1px 0 rgba(255, 255, 255, 0.4),
     0 8px 20px rgba(140, 158, 196, 0.06);
 
+  /* Надёжная обрезка видео по скруглению в Safari / Chrome */
+  -webkit-mask-image: -webkit-radial-gradient(white, black);
   transform: translateZ(0);
 }
-
 
 /* Плитка без камеры: мягкая "карточка" вместо пустоты */
 .call-participant-video.camera-off {
@@ -2059,7 +2043,6 @@ textarea {
 }
 
 
-
 .call-participant-video .call-avatar {
   position: absolute;
   top: 50%;
@@ -2084,14 +2067,12 @@ textarea {
   left: 12px;
   z-index: 1;
   max-width: calc(100% - 64px);
-  padding: 7px 11px;
+  padding: 8px 10px;
   overflow: hidden;
-  border-radius: 8px;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.88);
   color: var(--text);
   box-shadow: 0 4px 14px rgba(80, 105, 150, 0.12);
-  font-size: 13px;
-  font-weight: 600;
   text-align: left;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2100,7 +2081,7 @@ textarea {
 .call-mic-indicator {
   position: absolute;
   right: 12px;
-  bottom: 12px;
+  bottom: 14px;
   z-index: 2;
   display: grid;
   width: 30px;
@@ -3508,9 +3489,8 @@ textarea {
 @media (max-width: 600px) {
   .call-screen.video-call {
     width: calc(100% - 16px);
-    height: calc(100dvh - 16px);
-    max-height: calc(100dvh - 16px);
-    border-radius: 18px;
+    height: calc(100% - 16px);
+    border-radius: 14px;
   }
 
   .video-call .call-header {
@@ -3602,25 +3582,6 @@ textarea {
     gap: 2px;
   }
 
-  .call-controls {
-    gap: 8px;
-    padding: 12px 8px;
-  }
-
-  .call-control {
-    width: 44px;
-    height: 44px;
-    flex-basis: 44px;
-  }
-
-  .call-leave {
-    width: 44px;
-    min-width: 44px;
-    height: 44px;
-    flex-basis: 44px;
-    padding: 0;
-  }
-
   .call-invite-popover {
     left: auto;
     right: 0;
@@ -3697,45 +3658,6 @@ textarea {
 
   .call-invite-list {
     max-height: min(260px, calc(100dvh - 220px));
-  }
-}
-
-/* =========================================================
-   LANDSCAPE PHONES (низкая высота экрана)
-   ========================================================= */
-
-@media (max-height: 500px) and (orientation: landscape) {
-  .call-header {
-    padding: 10px 18px;
-  }
-
-  .call-participants-video {
-    grid-template-columns: repeat(
-      auto-fit,
-      minmax(min(100%, 200px), 1fr)
-    );
-    padding: 10px;
-  }
-
-  .call-controls,
-  .video-call .call-controls {
-    min-height: 0;
-    padding: 8px 12px;
-    flex-wrap: nowrap;
-  }
-
-  .call-control,
-  .video-call .call-control,
-  .call-leave {
-    width: 42px;
-    min-width: 42px;
-    height: 42px;
-    flex-basis: 42px;
-  }
-
-  .call-control svg {
-    width: 20px;
-    height: 20px;
   }
 }
 
