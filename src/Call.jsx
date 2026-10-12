@@ -125,7 +125,7 @@ function VideoTile({
       {hasVideo ? (
         <video
           ref={setVideoElement}
-          className="call-video"
+          className={`call-video ${isLocal ? 'local' : ''}`}
           autoPlay
           playsInline
           muted={isLocal}
