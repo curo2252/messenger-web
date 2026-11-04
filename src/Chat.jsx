@@ -154,6 +154,7 @@ function Chat({
 
   const [recording, setRecording] = useState(false)
   const [deletingMessageId, setDeletingMessageId] = useState(null)
+  const [deleteButtonMessageId, setDeleteButtonMessageId] = useState(null)
   const mediaRecorderRef = useRef(null)
   const mediaStreamRef = useRef(null)
   const recordingUserIdRef = useRef(null)
@@ -700,7 +701,24 @@ function Chat({
                 isMine
                   ? 'message-row-mine'
                   : 'message-row-other'
+              } ${
+                deleteButtonMessageId === message.id
+                  ? 'delete-message-visible'
+                  : ''
               }`}
+              onClick={(event) => {
+                if (
+                  !isMine ||
+                  !window.matchMedia('(hover: none)').matches ||
+                  event.target.closest('button')
+                ) {
+                  return
+                }
+
+                setDeleteButtonMessageId((currentId) =>
+                  currentId === message.id ? null : message.id
+                )
+              }}
             >
               {isMine && (
                 <button

@@ -1,8 +1,11 @@
 import {
   useEffect,
+  useLayoutEffect,
   useMemo,
+  useRef,
   useState,
 } from 'react'
+import { createPortal } from 'react-dom'
 
 import {
   LiveKitRoom,
@@ -188,8 +191,22 @@ function CallContent({
   const [callError, setCallError] =
     useState('')
 
+  const [windowPosition, setWindowPosition] =
+    useState({ x: 0, y: 0 })
+
+  const [windowSize, setWindowSize] =
+    useState(null)
+
+  const dragState = useRef(null)
+  const resizeState = useRef(null)
+  const lastTouchTapRef = useRef(null)
+  const inviteTriggerRef = useRef(null)
+
   const [inviteListOpen, setInviteListOpen] =
     useState(false)
+
+  const [invitePopoverStyle, setInvitePopoverStyle] =
+    useState(null)
 
   const [invitedUserIds, setInvitedUserIds] =
     useState([])
@@ -213,6 +230,270 @@ function CallContent({
 
   const inviteCapacityReached =
     participants.length + invitedUserIds.length >= 10
+
+  useLayoutEffect(() => {
+    if (!inviteListOpen) {
+      return undefined
+    }
+
+    const updatePopoverPosition = () => {
+      const trigger = inviteTriggerRef.current
+      const callWindow = trigger?.closest('.call-screen')
+
+      if (!trigger || !callWindow) {
+        return
+      }
+
+      const triggerBounds = trigger.getBoundingClientRect()
+      const windowBounds = callWindow.getBoundingClientRect()
+      const viewportWidth = document.documentElement.clientWidth
+      const viewportHeight = window.innerHeight
+      const horizontalPadding = 12
+      const gap = 10
+      const leftBound = Math.max(horizontalPadding, windowBounds.left + horizontalPadding)
+      const rightBound = Math.min(
+        viewportWidth - horizontalPadding,
+        windowBounds.right - horizontalPadding
+      )
+      const width = Math.max(1, Math.min(340, rightBound - leftBound))
+      const centerX = Math.min(
+        rightBound - width / 2,
+        Math.max(leftBound + width / 2, triggerBounds.left + triggerBounds.width / 2)
+      )
+      const topBound = Math.max(horizontalPadding, windowBounds.top + horizontalPadding)
+      const bottomBound = Math.min(
+        viewportHeight - horizontalPadding,
+        windowBounds.bottom - horizontalPadding
+      )
+      const spaceAbove = Math.max(0, triggerBounds.top - gap - topBound)
+      const spaceBelow = Math.max(0, bottomBound - triggerBounds.bottom - gap)
+      const placeAbove = spaceAbove >= 180 || spaceAbove >= spaceBelow
+      const maxHeight = Math.max(
+        64,
+        Math.min(380, placeAbove ? spaceAbove : spaceBelow)
+      )
+
+      setInvitePopoverStyle({
+        position: 'fixed',
+        left: centerX,
+        top: placeAbove ? undefined : triggerBounds.bottom + gap,
+        bottom: placeAbove ? viewportHeight - triggerBounds.top + gap : undefined,
+        width,
+        maxHeight,
+        transform: 'translateX(-50%)',
+        visibility: 'visible',
+      })
+    }
+
+    updatePopoverPosition()
+
+    const resizeObserver = new ResizeObserver(updatePopoverPosition)
+    const callWindow = inviteTriggerRef.current?.closest('.call-screen')
+
+    if (callWindow) {
+      resizeObserver.observe(callWindow)
+    }
+
+    window.addEventListener('resize', updatePopoverPosition)
+    window.addEventListener('scroll', updatePopoverPosition, true)
+
+    return () => {
+      resizeObserver.disconnect()
+      window.removeEventListener('resize', updatePopoverPosition)
+      window.removeEventListener('scroll', updatePopoverPosition, true)
+    }
+  }, [inviteListOpen, windowPosition, windowSize])
+
+  const handleWindowPointerDown = (event) => {
+    if (event.button !== 0) {
+      return
+    }
+
+    const callWindow = event.currentTarget.closest('.call-screen')
+
+    if (!callWindow) {
+      return
+    }
+
+    event.preventDefault()
+    event.currentTarget.setPointerCapture(event.pointerId)
+
+    const bounds = callWindow.getBoundingClientRect()
+    dragState.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      startPosition: windowPosition,
+      left: bounds.left - windowPosition.x,
+      top: bounds.top - windowPosition.y,
+      width: bounds.width,
+      height: bounds.height,
+    }
+  }
+
+  const handleWindowPointerMove = (event) => {
+    const drag = dragState.current
+
+    if (!drag || drag.pointerId !== event.pointerId) {
+      return
+    }
+
+    const minX = -drag.left
+    const maxX = Math.max(minX, window.innerWidth - drag.left - drag.width)
+    const minY = -drag.top
+    const maxY = Math.max(minY, window.innerHeight - drag.top - drag.height)
+
+    setWindowPosition({
+      x: Math.min(
+        maxX,
+        Math.max(
+          minX,
+          drag.startPosition.x + event.clientX - drag.startX
+        )
+      ),
+      y: Math.min(
+        maxY,
+        Math.max(
+          minY,
+          drag.startPosition.y + event.clientY - drag.startY
+        )
+      ),
+    })
+  }
+
+  const handleWindowPointerUp = (event) => {
+    if (dragState.current?.pointerId === event.pointerId) {
+      dragState.current = null
+    }
+  }
+
+  const resetCallWindow = (event) => {
+    if (event?.target?.closest('button')) {
+      return
+    }
+
+    dragState.current = null
+    resizeState.current = null
+    setWindowPosition({ x: 0, y: 0 })
+    setWindowSize(null)
+  }
+
+  const handleCallWindowPointerUp = (event) => {
+    if (
+      event.pointerType !== 'touch' ||
+      event.target.closest('button, input, textarea, .call-invite-popover')
+    ) {
+      lastTouchTapRef.current = null
+      return
+    }
+
+    const now = Date.now()
+    const previousTap = lastTouchTapRef.current
+    const isDoubleTap =
+      previousTap &&
+      now - previousTap.time < 350 &&
+      Math.hypot(
+        event.clientX - previousTap.x,
+        event.clientY - previousTap.y
+      ) < 28
+
+    if (isDoubleTap) {
+      lastTouchTapRef.current = null
+      resetCallWindow(event)
+      return
+    }
+
+    lastTouchTapRef.current = {
+      time: now,
+      x: event.clientX,
+      y: event.clientY,
+    }
+  }
+
+  const handleResizePointerDown = (event) => {
+    if (event.button !== 0) {
+      return
+    }
+
+    event.preventDefault()
+    event.stopPropagation()
+    event.currentTarget.setPointerCapture(event.pointerId)
+
+    const bounds = event.currentTarget
+      .closest('.call-screen')
+      .getBoundingClientRect()
+
+    resizeState.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      corner: event.currentTarget.dataset.corner,
+      startPosition: windowPosition,
+      width: bounds.width,
+      height: bounds.height,
+      left: bounds.left,
+      top: bounds.top,
+      bottom: bounds.bottom,
+    }
+
+    setWindowSize({
+      width: bounds.width,
+      height: bounds.height,
+    })
+  }
+
+  const handleResizePointerMove = (event) => {
+    const resize = resizeState.current
+
+    if (!resize || resize.pointerId !== event.pointerId) {
+      return
+    }
+
+    const resizeFromLeft = resize.corner.includes('left')
+    const resizeFromTop = resize.corner.includes('top')
+    const maxWidth = Math.max(
+      1,
+      resizeFromLeft ? resize.left + resize.width : window.innerWidth - resize.left
+    )
+    const maxHeight = Math.max(
+      1,
+      resizeFromTop ? resize.bottom : window.innerHeight - resize.top
+    )
+    const width = Math.min(
+      maxWidth,
+      Math.max(
+        Math.min(320, maxWidth),
+        resize.width +
+          (resizeFromLeft
+            ? resize.startX - event.clientX
+            : event.clientX - resize.startX)
+      )
+    )
+    const height = Math.min(
+      maxHeight,
+      Math.max(
+        Math.min(360, maxHeight),
+        resize.height +
+          (resizeFromTop
+            ? resize.startY - event.clientY
+            : event.clientY - resize.startY)
+      )
+    )
+
+    setWindowSize({ width, height })
+    setWindowPosition({
+      x: resize.startPosition.x +
+        (resizeFromLeft ? -1 : 1) * (width - resize.width) / 2,
+      y: resize.startPosition.y +
+        (resizeFromTop ? -1 : 1) * (height - resize.height) / 2,
+    })
+  }
+
+  const handleResizePointerUp = (event) => {
+    if (resizeState.current?.pointerId === event.pointerId) {
+      resizeState.current = null
+    }
+  }
 
   const inviteUser = async (user) => {
     if (
@@ -330,11 +611,24 @@ function CallContent({
           ? 'video-call'
           : 'audio-call'
       }`}
+      style={{
+        transform: `translate(${windowPosition.x}px, ${windowPosition.y}px)`,
+        width: windowSize?.width,
+        height: windowSize?.height,
+      }}
+      onDoubleClick={resetCallWindow}
+      onPointerUp={handleCallWindowPointerUp}
     >
 
       {/* HEADER */}
 
-      <div className="call-header">
+      <div
+        className="call-header call-header-draggable"
+        onPointerDown={handleWindowPointerDown}
+        onPointerMove={handleWindowPointerMove}
+        onPointerUp={handleWindowPointerUp}
+        onPointerCancel={handleWindowPointerUp}
+      >
         <div>
 
           <div className="call-title">
@@ -523,9 +817,13 @@ function CallContent({
 
         <div className="call-invite-control">
           <button
+            ref={inviteTriggerRef}
             type="button"
             className="call-control"
-            onClick={() => setInviteListOpen((open) => !open)}
+            onClick={() => {
+              setInvitePopoverStyle(null)
+              setInviteListOpen((open) => !open)
+            }}
             aria-label="Пригласить участников"
             aria-expanded={inviteListOpen}
             aria-controls="call-invite-list"
@@ -533,57 +831,6 @@ function CallContent({
           >
             <AddIcon />
           </button>
-
-          {inviteListOpen && (
-            <div className="call-invite-popover" id="call-invite-list">
-              <div className="call-invite-title">Пригласить в звонок</div>
-              {availableUsers.length === 0 ? (
-                <div className="call-invite-empty">Контактов пока нет</div>
-              ) : (
-                <div className="call-invite-list">
-                  {availableUsers.map((user) => {
-                    const alreadyInCall = participantIds.has(user.id)
-                    const alreadyInvited = invitedUserIds.includes(user.id)
-                    const disabled =
-                      alreadyInCall ||
-                      alreadyInvited ||
-                      inviteCapacityReached ||
-                      invitingUserId !== null
-
-                    return (
-                      <div className="call-invite-item" key={user.id}>
-                        <div className="call-setup-avatar">
-                          {user.username?.[0]?.toUpperCase() || '?'}
-                        </div>
-                        <span className="call-invite-name">
-                          {user.username || 'Пользователь'}
-                        </span>
-                        <button
-                          type="button"
-                          className="call-invite-action"
-                          onClick={() => inviteUser(user)}
-                          disabled={disabled}
-                        >
-                          {alreadyInCall
-                            ? 'В звонке'
-                            : alreadyInvited
-                              ? 'Отправлено'
-                              : invitingUserId === user.id
-                                ? 'Отправка...'
-                                : 'Пригласить'}
-                        </button>
-                      </div>
-                    )
-                  })}
-                </div>
-              )}
-              {inviteCapacityReached && (
-                <div className="call-invite-limit">
-                  Достигнут лимит участников
-                </div>
-              )}
-            </div>
-          )}
         </div>
 
 
@@ -606,6 +853,120 @@ function CallContent({
 
       <StartAudio label="Включить звук собеседника" />
       <RoomAudioRenderer />
+
+      <button
+        type="button"
+        className="call-drag-corner call-drag-corner-top-left"
+        aria-label="Переместить окно звонка"
+        onPointerDown={handleWindowPointerDown}
+        onPointerMove={handleWindowPointerMove}
+        onPointerUp={handleWindowPointerUp}
+        onPointerCancel={handleWindowPointerUp}
+      />
+      <button
+        type="button"
+        className="call-drag-corner call-drag-corner-top-right"
+        aria-label="Переместить окно звонка"
+        onPointerDown={handleWindowPointerDown}
+        onPointerMove={handleWindowPointerMove}
+        onPointerUp={handleWindowPointerUp}
+        onPointerCancel={handleWindowPointerUp}
+      />
+      <button
+        type="button"
+        className="call-drag-corner call-drag-corner-bottom-left"
+        aria-label="Переместить окно звонка"
+        onPointerDown={handleWindowPointerDown}
+        onPointerMove={handleWindowPointerMove}
+        onPointerUp={handleWindowPointerUp}
+        onPointerCancel={handleWindowPointerUp}
+      />
+      <button
+        type="button"
+        className="call-drag-corner call-drag-corner-bottom-right"
+        aria-label="Переместить окно звонка"
+        onPointerDown={handleWindowPointerDown}
+        onPointerMove={handleWindowPointerMove}
+        onPointerUp={handleWindowPointerUp}
+        onPointerCancel={handleWindowPointerUp}
+      />
+
+      <button
+        type="button"
+        className="call-resize-handle call-resize-handle-bottom-right"
+        aria-label="Изменить размер окна звонка"
+        data-corner="bottom-right"
+        onPointerDown={handleResizePointerDown}
+        onPointerMove={handleResizePointerMove}
+        onPointerUp={handleResizePointerUp}
+        onPointerCancel={handleResizePointerUp}
+      />
+      <button
+        type="button"
+        className="call-resize-handle call-resize-handle-top-right"
+        aria-label="Изменить размер окна звонка"
+        data-corner="top-right"
+        onPointerDown={handleResizePointerDown}
+        onPointerMove={handleResizePointerMove}
+        onPointerUp={handleResizePointerUp}
+        onPointerCancel={handleResizePointerUp}
+      />
+
+      {inviteListOpen && createPortal(
+        <div
+          className="call-invite-popover"
+          id="call-invite-list"
+          style={invitePopoverStyle || { visibility: 'hidden' }}
+        >
+          <div className="call-invite-title">Пригласить в звонок</div>
+          {availableUsers.length === 0 ? (
+            <div className="call-invite-empty">Контактов пока нет</div>
+          ) : (
+            <div className="call-invite-list">
+              {availableUsers.map((user) => {
+                const alreadyInCall = participantIds.has(user.id)
+                const alreadyInvited = invitedUserIds.includes(user.id)
+                const disabled =
+                  alreadyInCall ||
+                  alreadyInvited ||
+                  inviteCapacityReached ||
+                  invitingUserId !== null
+
+                return (
+                  <div className="call-invite-item" key={user.id}>
+                    <div className="call-setup-avatar">
+                      {user.username?.[0]?.toUpperCase() || '?'}
+                    </div>
+                    <span className="call-invite-name">
+                      {user.username || 'Пользователь'}
+                    </span>
+                    <button
+                      type="button"
+                      className="call-invite-action"
+                      onClick={() => inviteUser(user)}
+                      disabled={disabled}
+                    >
+                      {alreadyInCall
+                        ? 'В звонке'
+                        : alreadyInvited
+                          ? 'Отправлено'
+                          : invitingUserId === user.id
+                            ? 'Отправка...'
+                            : 'Пригласить'}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+          {inviteCapacityReached && (
+            <div className="call-invite-limit">
+              Достигнут лимит участников
+            </div>
+          )}
+        </div>,
+        document.body
+      )}
 
     </div>
   )
